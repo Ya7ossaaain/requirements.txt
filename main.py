@@ -1,6 +1,7 @@
 import os
 import requests
-from fastapi import FastAPI, Request, Response
+from fastapi import FastAPI, Request
+from fastapi.responses import PlainTextResponse
 from google import genai
 
 app = FastAPI()
@@ -14,7 +15,7 @@ GRAPH_URL = "https://graph.facebook.com/v26.0"
 
 ai_client = genai.Client(api_key=GEMINI_API_KEY) if GEMINI_API_KEY else None
 
-# ==================== هنا تضع وتعدل كل تعليمات شخصيتك ====================
+# ==================== تعليمات شخصية حسين ====================
 SYSTEM_INSTRUCTION = """
 أنت حسين (صاحب الحساب الشخصي على إنستغرام).
 تتحدث مباشرة مع أصدقائك ومعارفك ومتابعيك كأنك أنت.
@@ -40,17 +41,23 @@ def send_direct_message(recipient_id: str, message_text: str):
 
 @app.get("/")
 def home():
-    return {"status": "Instagram Bot is running successfully on Vercel!"}
+    return PlainTextResponse("Instagram Bot is running successfully on Vercel!")
 
+# التحقق من الويب هوك بتوافق تام مع شروط فيسبوك
 @app.get("/webhook")
 async def verify_webhook(request: Request):
-    mode = request.query_params.get("hub.mode")
-    token = request.query_params.get("hub.verify_token")
-    challenge = request.query_params.get("hub.challenge")
-    if mode == "subscribe" and token == VERIFY_TOKEN:
-        return Response(content=challenge, media_type="text/plain")
-    return Response(content="Forbidden", status_code=403)
+    params = request.query_params
+    mode = params.get("hub.mode")
+    token = params.get("hub.verify_token")
+    challenge = params.get("hub.challenge")
 
+    if mode == "subscribe" and token == VERIFY_TOKEN:
+        if challenge:
+            return PlainTextResponse(content=str(challenge), status_code=200)
+    
+    return PlainTextResponse(content="Verification failed", status_code=403)
+
+# استقبال الرسائل والرد عليها
 @app.post("/webhook")
 async def receive_message(request: Request):
     data = await request.json()
@@ -74,4 +81,4 @@ async def receive_message(request: Request):
                     send_direct_message(sender_id, reply)
     except Exception as e:
         print(f"Error handling webhook: {e}")
-    return {"status": "ok"}
+    return PlainTextResponse("EVENT_RECEIVED", status_code=200)
